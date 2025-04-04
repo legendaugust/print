@@ -1,1 +1,99 @@
-print("hello")
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:FindFirstChildOfClass("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+local userInput = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
+
+local flying = false
+local speed = 50 -- Tốc độ di chuyển
+local bodyVelocity
+local bodyGyro
+
+local moveDirections = {
+    W = false,
+    A = false,
+    S = false,
+    D = false
+}
+
+-- Bắt đầu bay
+local function startFlying()
+    if flying then return end
+    flying = true
+    humanoid.PlatformStand = true
+
+    -- Giữ nhân vật luôn thẳng
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.CFrame = rootPart.CFrame
+    bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    bodyGyro.P = 9e4
+    bodyGyro.Parent = rootPart
+
+    -- Duy trì lực bay
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    bodyVelocity.Parent = rootPart
+
+    -- Cập nhật hướng di chuyển theo màn hình
+    runService.RenderStepped:Connect(function()
+        if flying then
+            local cam = workspace.CurrentCamera
+            local forward = cam.CFrame.LookVector
+            local right = cam.CFrame.RightVector
+            forward = Vector3.new(forward.X, forward.Y, forward.Z).unit
+            right = Vector3.new(right.X, right.Y, right.Z).unit
+
+            bodyGyro.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + forward)
+
+            local moveDirection = Vector3.new(0, 0, 0)
+            if moveDirections.W then moveDirection = moveDirection + forward end
+            if moveDirections.S then moveDirection = moveDirection - forward end
+            if moveDirections.A then moveDirection = moveDirection - right end
+            if moveDirections.D then moveDirection = moveDirection + right end
+
+            if moveDirection.Magnitude > 0 then
+                bodyVelocity.Velocity = moveDirection.Unit * speed
+            else
+                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+    end)
+end
+
+-- Dừng bay
+local function stopFlying()
+    flying = false
+    if bodyVelocity then bodyVelocity:Destroy() end
+    if bodyGyro then bodyGyro:Destroy() end
+    humanoid.PlatformStand = false
+end
+
+-- Nhấn F để bật/tắt bay
+userInput.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    if input.KeyCode == Enum.KeyCode.F then
+        if flying then
+            stopFlying()
+        else
+            startFlying()
+        end
+    elseif flying then
+        if input.KeyCode == Enum.KeyCode.W then moveDirections.W = true end
+        if input.KeyCode == Enum.KeyCode.A then moveDirections.A = true end
+        if input.KeyCode == Enum.KeyCode.S then moveDirections.S = true end
+        if input.KeyCode == Enum.KeyCode.D then moveDirections.D = true end
+    end
+end)
+
+-- Ngừng di chuyển khi thả nút
+userInput.InputEnded:Connect(function(input, processed)
+    if processed then return end
+    if flying then
+        if input.KeyCode == Enum.KeyCode.W then moveDirections.W = false end
+        if input.KeyCode == Enum.KeyCode.A then moveDirections.A = false end
+        if input.KeyCode == Enum.KeyCode.S then moveDirections.S = false end
+        if input.KeyCode == Enum.KeyCode.D then moveDirections.D = false end
+    end
+end)
